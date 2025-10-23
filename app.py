@@ -29,11 +29,18 @@ async def process_reports(cortex_file: UploadFile = File(...), adp_file: UploadF
             return io.BytesIO(data)
 
         task = BackgroundTask(lambda: os.remove(excel_path) if os.path.exists(excel_path) else None)
-        headers = {"X-Summary": summary}
-        filename = os.path.basename(excel_path)
-        return StreamingResponse(
-            file_iterator(excel_path),
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={**headers, "Content-Disposition": f'attachment; filename="{filename}"'},
-            background=task
-        )
+ import base64
+
+encoded_summary = base64.b64encode(summary.encode("utf-8")).decode("utf-8")
+filename = os.path.basename(excel_path)
+headers = {
+    "Content-Disposition": f'attachment; filename="{filename}"',
+    "X-Summary-Encoded": encoded_summary
+}
+
+return StreamingResponse(
+    file_iterator(excel_path),
+    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    headers=headers,
+    background=task
+)
