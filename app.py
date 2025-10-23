@@ -1,8 +1,7 @@
-
-from fastapi import FastAPI, UploadFile, File, Response
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
-import tempfile, os, shutil, io
+import tempfile, os, shutil, io, base64
 from processor import process_files
 
 app = FastAPI()
@@ -28,19 +27,19 @@ async def process_reports(cortex_file: UploadFile = File(...), adp_file: UploadF
                 data = f.read()
             return io.BytesIO(data)
 
+        # Encode summary safely for HTTP headers
+        encoded_summary = base64.b64encode(summary.encode("utf-8")).decode("utf-8")
+
         task = BackgroundTask(lambda: os.remove(excel_path) if os.path.exists(excel_path) else None)
- import base64
+        filename = os.path.basename(excel_path)
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Summary-Encoded": encoded_summary
+        }
 
-encoded_summary = base64.b64encode(summary.encode("utf-8")).decode("utf-8")
-filename = os.path.basename(excel_path)
-headers = {
-    "Content-Disposition": f'attachment; filename="{filename}"',
-    "X-Summary-Encoded": encoded_summary
-}
-
-return StreamingResponse(
-    file_iterator(excel_path),
-    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    headers=headers,
-    background=task
-)
+        return StreamingResponse(
+            file_iterator(excel_path),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=headers,
+            background=task
+        )
